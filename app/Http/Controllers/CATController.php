@@ -38,13 +38,15 @@ class CATController extends Controller
             $request->validate([
                 'session_id' => 'required|string',
                 'item_id' => 'required|string',
-                'answer' => 'required|integer|in:0,1'
+                'answer' => 'required|integer|in:0,1',
+                'response_duration_seconds' => 'integer|min:0'
             ]);
 
             $result = $this->catService->submitResponse(
                 $request->session_id,
                 $request->item_id,
-                $request->answer
+                $request->answer,
+                $request->response_duration_seconds ?? 0
             );
 
             return response()->json($result);

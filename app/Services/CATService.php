@@ -355,7 +355,8 @@ class CATService
             'session_id' => $sessionId,
             'theta' => 0.0,
             'standard_error' => 1.0,
-            'test_completed' => false
+            'test_completed' => false,
+            'started_at' => now()
         ]);
         
         // Get first item
@@ -379,14 +380,15 @@ class CATService
             'item_number' => 1,
             'probability' => $this->probability(0.0, $firstItem->a, $firstItem->b, $firstItem->g, $firstItem->u),
             'information' => $this->itemInformation(0.0, $firstItem->a, $firstItem->b, $firstItem->g, $firstItem->u),
-            'expected_fisher_information' => $this->expectedFisherInformation($firstItem->a, $firstItem->b, $firstItem->g, $sessionId, $firstItem->u)
+            'expected_fisher_information' => $this->expectedFisherInformation($firstItem->a, $firstItem->b, $firstItem->g, $sessionId, $firstItem->u),
+            'started_at' => $session->started_at->toISOString()
         ];
     }
 
     /**
      * Submit response and get next item
      */
-    public function submitResponse(string $sessionId, string $itemId, int $answer): array
+    public function submitResponse(string $sessionId, string $itemId, int $answer, int $responseDurationSeconds = 0): array
     {
         // Clear cache at start of new response
         unset($this->posteriorCache[$sessionId]);
@@ -413,7 +415,7 @@ class CATService
         $informationBefore = $this->itemInformation($session->theta, $item->a, $item->b, $item->g, $item->u);
         $efiBefore = $this->expectedFisherInformation($item->a, $item->b, $item->g, $sessionId, $item->u);
         
-        // Store response
+        // Store response with timing
         TestResponse::create([
             'session_id' => $sessionId,
             'item_id' => $itemId,
@@ -424,7 +426,9 @@ class CATService
             'item_order' => $responseCount + 1,
             'probability' => $probabilityBefore,
             'information' => $informationBefore,
-            'expected_fisher_information' => $efiBefore
+            'expected_fisher_information' => $efiBefore,
+            'response_time' => now(),
+            'response_duration_seconds' => $responseDurationSeconds
         ]);
         
         // Estimate new theta and SE
@@ -450,10 +454,20 @@ class CATService
         
         if ($shouldStop) {
             $finalScore = $this->calculateScore($newTheta);
+            $completedAt = now();
+            
+            // Refresh session data to get the latest started_at
+            $session->refresh();
+            
+            // Calculate duration in milliseconds
+            $totalDurationMs = $completedAt->diffInMilliseconds($session->started_at);
+            
             $session->update([
                 'test_completed' => true,
                 'stop_reason' => $stopReason,
-                'final_score' => $finalScore
+                'final_score' => $finalScore,
+                'completed_at' => $completedAt,
+                'total_duration_milliseconds' => $totalDurationMs
             ]);
             
             return [
@@ -462,7 +476,9 @@ class CATService
                 'se' => $newSE,
                 'final_score' => $finalScore,
                 'stop_reason' => $stopReason,
-                'total_items' => $responseCount + 1
+                'total_items' => $responseCount + 1,
+                'total_duration_milliseconds' => $totalDurationMs,
+                'completed_at' => $completedAt->toISOString()
             ];
         }
         
@@ -471,10 +487,20 @@ class CATService
         
         if (!$nextItem) {
             $finalScore = $this->calculateScore($newTheta);
+            $completedAt = now();
+            
+            // Refresh session data to get the latest started_at
+            $session->refresh();
+            
+            // Calculate duration in milliseconds
+            $totalDurationMs = $completedAt->diffInMilliseconds($session->started_at);
+            
             $session->update([
                 'test_completed' => true,
                 'stop_reason' => 'No more items available',
-                'final_score' => $finalScore
+                'final_score' => $finalScore,
+                'completed_at' => $completedAt,
+                'total_duration_milliseconds' => $totalDurationMs
             ]);
             
             return [
@@ -483,7 +509,9 @@ class CATService
                 'se' => $newSE,
                 'final_score' => $finalScore,
                 'stop_reason' => 'No more items available',
-                'total_items' => $responseCount + 1
+                'total_items' => $responseCount + 1,
+                'total_duration_milliseconds' => $totalDurationMs,
+                'completed_at' => $completedAt->toISOString()
             ];
         }
         
@@ -532,7 +560,9 @@ class CATService
             'session' => $session,
             'responses' => $responses,
             'theta_history' => $thetaHistory,
-            'se_history' => $seHistory
+            'se_history' => $seHistory,
+            'total_duration_milliseconds' => $session->total_duration_milliseconds,
+            'average_response_time_seconds' => $responses->avg('response_duration_seconds')
         ];
     }
 }

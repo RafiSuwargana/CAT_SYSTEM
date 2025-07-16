@@ -17,7 +17,9 @@ class TestResponse extends Model
         'item_order',
         'probability',
         'information',
-        'expected_fisher_information'
+        'expected_fisher_information',
+        'response_time',
+        'response_duration_seconds'
     ];
 
     protected $casts = [
@@ -29,6 +31,8 @@ class TestResponse extends Model
         'probability' => 'decimal:6',
         'information' => 'decimal:6',
         'expected_fisher_information' => 'decimal:6',
+        'response_time' => 'datetime',
+        'response_duration_seconds' => 'integer',
     ];
 
     /**

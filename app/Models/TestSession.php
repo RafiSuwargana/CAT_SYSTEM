@@ -18,7 +18,10 @@ class TestSession extends Model
         'standard_error',
         'test_completed',
         'stop_reason',
-        'final_score'
+        'final_score',
+        'started_at',
+        'completed_at',
+        'total_duration_milliseconds'
     ];
 
     protected $casts = [
@@ -26,6 +29,8 @@ class TestSession extends Model
         'standard_error' => 'decimal:6',
         'test_completed' => 'boolean',
         'final_score' => 'decimal:2',
+        'started_at' => 'datetime',
+        'completed_at' => 'datetime',
     ];
 
     /**
